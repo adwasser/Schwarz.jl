@@ -17,8 +17,8 @@ from scipy import integrate, optimize
 from astropy import units as u
 from astropy import constants as c
 
-G = 4.302e-6 # kpc Msun-1 km2 s-2
-Gyr_per_t = 0.9777922216731284 # Gyr
+# G = 4.302e-6 # kpc Msun-1 km2 s-2
+# Gyr_per_t = 0.9777922216731284 # Gyr
 
 ################################################################################
 # Rotation matrices
