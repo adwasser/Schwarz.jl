@@ -4,12 +4,15 @@ include("constants.jl")
 include("potentials.jl")
 include("rotations.jl")
 include("orbits.jl")
+include("observables.jl")
+
 
 using .Constants
 c = Constants
-import .Potentials: PowerLawPotential, mass, density, potential
-import .Orbits: Orbit, OrbitLibrary
+using .Observables: KinematicData
+using .Potentials: PowerLawPotential, mass, density, potential
+using .Orbits: Orbit, OrbitLibrary
 
-export c, mass, density, potential, PowerLawPotential, Orbit, OrbitLibrary
+export c, mass, density, potential, PowerLawPotential, Orbit, OrbitLibrary, KinematicData
 
 end
