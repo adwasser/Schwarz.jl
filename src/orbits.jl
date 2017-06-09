@@ -9,6 +9,7 @@ using Schwarz.Constants
 c = Constants
 using Schwarz.Potentials: mass, density, potential, SphericalPotential
 using Schwarz.Rotations: Rx, Ry, Rz
+using Schwarz.Observables: binedges
 
 type Orbit
     #=
@@ -123,7 +124,6 @@ writedlm(filename::String, o::Orbit) = begin
                             o.vz / c.km_per_s))
 end
 
-
 function integrals(orbit::Orbit)
     # Calculate specific energy and specific angular momentum
     pos = [orbit.x orbit.y orbit.z]
@@ -133,6 +133,41 @@ function integrals(orbit::Orbit)
     e = map(i -> potential(orbit.phi, r[i]) + v[i]^2 / 2, 1:size(pos, 1))
     j = map(i -> norm(cross(pos[i, :], vel[i, :])), 1:size(pos, 1))
     return e, j
+end
+
+type BinnedOrbit
+    radii::Array{Float64, 1}
+    edges::Array{Tuple{Float64, Float64}}
+    mass::Array{Float64, 1}
+    dispersion::Array{Float64, 1}
+end
+
+function BinnedOrbit(orbit::Orbit, edges::Array{Tuple{Float64, Float64}},
+                     projection::Array{Float64, 1})
+    @assert size(projection, 1) == 3
+    projection = projection / norm(projection)
+    radii = map(edges -> (edges[1] + edges[2]) / 2, edges)
+    mass = Array{Float64, 1}(size(edges, 1))
+    dispersion = Array{Float64, 1}(size(edges, 1))
+    r = map(k -> begin
+            pos = [orbit.x[k], orbit.y[k], orbit.z[k]]
+            norm(pos - dot(pos, projection) * projection)
+            end,
+            1:size(orbit, 1))
+    for (i, (rlow, rhigh)) in enumerate(edges)
+        inbin = (r .< rhigh) & (r .>= rlow)
+        vel = [orbit.vx[inbin], orbit.vy[inbin], orbit.vz[inbin]]
+        vlos = [dot(vel[j], projection) for j in 1:size(vel, 1)]
+        dispersion[i] = sum(vlos .^ 2)
+        # fraction of time spent in bin
+        mass[i] = count(j -> j, inbin) / size(r, 1)
+    end
+    BinnedOrbit(radii, edges, mass, dispersion)
+end
+
+function BinnedOrbit(orbit::Orbit, edges::Array{Tuple{Float64, Float64}})
+    projection = [0.0, 0.0, 1.0]
+    BinnedOrbit(orbit, edges, projection)
 end
 
 type OrbitLibrary
