@@ -1,8 +1,7 @@
 module Orbits
 
-using Roots.fzero
-
-# using DifferentialEquations: ODEProblem, solve, AbstractODEAlgorithm
+import Base: size, writedlm, show
+using Formatting.format
 using DifferentialEquations
 default_solver = DifferentialEquations.Vern9()
 
@@ -114,13 +113,16 @@ function rotate!(orbit::Orbit, i::Real, omega::Real)
     return nothing
 end
 
-import Base: size, writedlm
+show(io::IO, orbit::Orbit) = print(format("Orbit: e = {:.2e}, j = {:2e}, i = {:.2f}, Ω = {:.2f}",
+                                          orbit.e / c.km_per_s^2, orbit.j / (c.kpc * c.km_per_s),
+                                          orbit.i, orbit.omega))
 size(orbit::Orbit) = size(orbit.t)
 writedlm(filename::String, o::Orbit) = begin
     writedlm(filename, hcat(o.t / c.Gyr, o.x / c.kpc, o.y / c.kpc, o.z / c.kpc,
                             o.vx / c.km_per_s, o.vy / c.km_per_s,
                             o.vz / c.km_per_s))
 end
+
 
 function integrals(orbit::Orbit)
     # Calculate specific energy and specific angular momentum
@@ -165,5 +167,6 @@ type OrbitLibrary
     end
 end
 
+show(io::IO, lib::OrbitLibrary) = print(format("OrbitLibrary: {:d} orbits", size(lib.orbits)[1]))
 
 end
