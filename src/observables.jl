@@ -34,7 +34,7 @@ end
 
 function binedges(radii::Array{Float64, 1})
     nbins = size(radii, 1)
-    edges = Array{Tuple{Float63, Float64}}(nbins)
+    edges = Array{Tuple{Float64, Float64}}(nbins)
     # first bin
     rhigh = (radii[1] + radii[2]) / 2
     edges[1] = (2 * radii[1] - rhigh, rhigh)

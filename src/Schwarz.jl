@@ -10,8 +10,9 @@ using .Constants
 c = Constants
 using .Observables: KinematicData
 using .Potentials: PowerLawPotential, mass, density, potential
-using .Orbits: Orbit, OrbitLibrary, integrals
+using .Orbits: Orbit, BinnedOrbit, OrbitLibrary, BinnedLibrary, integrals
 
-export c, mass, density, potential, PowerLawPotential, Orbit, OrbitLibrary, KinematicData
+export c, mass, density, potential, PowerLawPotential, Orbit, OrbitLibrary,
+    BinnedOrbit, BinnedLibrary, KinematicData
 
 end

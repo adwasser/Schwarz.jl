@@ -1,6 +1,6 @@
 module Orbits
 
-import Base: size, writedlm, show
+import Base: size, writedlm, show, length
 using Formatting.format
 using DifferentialEquations
 default_solver = DifferentialEquations.Vern9()
@@ -9,7 +9,6 @@ using Schwarz.Constants
 c = Constants
 using Schwarz.Potentials: mass, density, potential, SphericalPotential
 using Schwarz.Rotations: Rx, Ry, Rz
-using Schwarz.Observables: binedges
 
 type Orbit
     #=
@@ -36,7 +35,7 @@ type Orbit
 end
 
 function Orbit(w0::Array, i::Real, omega::Real,
-                   phi::SphericalPotential, alg::AbstractODEAlgorithm)
+               phi::SphericalPotential, alg::AbstractODEAlgorithm)
     #=
     w0 : intial condition, [x, y, vx, vy]
     i : inclination (rad)
@@ -118,6 +117,7 @@ show(io::IO, orbit::Orbit) = print(format("Orbit: e = {:.2e}, j = {:2e}, i = {:.
                                           orbit.e / c.km_per_s^2, orbit.j / (c.kpc * c.km_per_s),
                                           orbit.i, orbit.omega))
 size(orbit::Orbit) = size(orbit.t)
+length(orbit::Orbit) = length(orbit.t)
 writedlm(filename::String, o::Orbit) = begin
     writedlm(filename, hcat(o.t / c.Gyr, o.x / c.kpc, o.y / c.kpc, o.z / c.kpc,
                             o.vx / c.km_per_s, o.vy / c.km_per_s,
@@ -153,55 +153,88 @@ function BinnedOrbit(orbit::Orbit, edges::Array{Tuple{Float64, Float64}},
             pos = [orbit.x[k], orbit.y[k], orbit.z[k]]
             norm(pos - dot(pos, projection) * projection)
             end,
-            1:size(orbit, 1))
+            1:length(orbit))
+    vlos = map(k -> begin
+               vel = [orbit.vx[k], orbit.vy[k], orbit.vz[k]]
+               dot(vel, projection)
+               end,
+               1:length(orbit))
     for (i, (rlow, rhigh)) in enumerate(edges)
         inbin = (r .< rhigh) & (r .>= rlow)
-        vel = [orbit.vx[inbin], orbit.vy[inbin], orbit.vz[inbin]]
-        vlos = [dot(vel[j], projection) for j in 1:size(vel, 1)]
-        dispersion[i] = sum(vlos .^ 2)
+        dispersion[i] = sum(vlos[inbin] .^ 2)
         # fraction of time spent in bin
-        mass[i] = count(j -> j, inbin) / size(r, 1)
+        mass[i] = count(j -> j, inbin) / length(r)
     end
     BinnedOrbit(radii, edges, mass, dispersion)
 end
 
-function BinnedOrbit(orbit::Orbit, edges::Array{Tuple{Float64, Float64}})
+function BinnedOrbit(orbit::Orbit, edges::Array{Tuple{Float64, Float64}, 1})
     projection = [0.0, 0.0, 1.0]
     BinnedOrbit(orbit, edges, projection)
 end
 
+show(io::IO, orbit::BinnedOrbit) = println(format("BinnedOrbit: {:d} bins", length(orbit)))
+size(orbit::BinnedOrbit) = size(orbit.edges)
+length(orbit::BinnedOrbit) = length(orbit.edges)
+
 type OrbitLibrary
     phi::SphericalPotential
     orbits::Array{Orbit}
-    function OrbitLibrary(Nr::Int, Nv::Int, Ni::Int, Nomega::Int,
-                          rmax::Real, phi::SphericalPotential)
-        dr = rmax / Nr
-        radii = linspace(dr, rmax, Nr)
-        orbits = Array{Orbit}(Nr * Nv * Ni * Nomega)
-        count = 1
-        for r in radii
-            vmax = 0.9 * sqrt(-2 * potential(phi, r))
-            dv = vmax / Nv
-            velocities = linspace(dv, vmax, Nv)
-            for v in velocities
-                w0 = [r, 0, 0, v]
-                orbit = Orbit(w0, phi)
-                di = pi / 2.0 / Ni
-                inclinations = linspace(di, pi / 2.0, Ni)
-                for i in inclinations
-                    domega = 2pi / Nomega
-                    longitudes = linspace(domega, 2pi, Nomega)
-                    for omega in longitudes
-                        orbits[count] = rotate(orbit, i, omega)
-                        count += 1
-                    end
+end
+
+function OrbitLibrary(Nr::Int, Nv::Int, Ni::Int, Nomega::Int,
+                      rmax::Real, phi::SphericalPotential)
+    dr = rmax / Nr
+    radii = linspace(dr, rmax, Nr)
+    orbits = Array{Orbit}(Nr * Nv * Ni * Nomega)
+    bins = Array{BinnedOrbit}(Nr * Nv * Ni * Nomega)
+    count = 1
+    for r in radii
+        vmax = 0.9 * sqrt(-2 * potential(phi, r))
+        dv = vmax / Nv
+        velocities = linspace(dv, vmax, Nv)
+        for v in velocities
+            w0 = [r, 0, 0, v]
+            orbit = Orbit(w0, phi)
+            di = pi / 2.0 / Ni
+            inclinations = linspace(di, pi / 2.0, Ni)
+            for i in inclinations
+                domega = 2pi / Nomega
+                longitudes = linspace(domega, 2pi, Nomega)
+                for omega in longitudes
+                    orbits[count] = rotate(orbit, i, omega)
+                    count += 1
                 end
             end
         end
-        new(phi, orbits)
     end
+    OrbitLibrary(phi, orbits)
 end
 
-show(io::IO, lib::OrbitLibrary) = print(format("OrbitLibrary: {:d} orbits", size(lib.orbits)[1]))
+size(lib::OrbitLibrary) = size(lib.orbits)
+length(lib::OrbitLibrary) = length(lib.orbits)
+show(io::IO, lib::OrbitLibrary) = println(format("OrbitLibrary: {:d} orbits", size(lib.orbits)[1]))
+
+type BinnedLibrary
+    phi::SphericalPotential
+    orbits::Array{BinnedOrbit}
+end
+
+function BinnedLibrary(lib::OrbitLibrary, edges::Array{Tuple{Float64, Float64}})
+    orbits = [BinnedOrbit(lib.orbits[i], edges) for i in 1:length(lib)]
+    BinnedLibrary(lib.phi, orbits)
+end
+
+function BinnedLibrary(Nr::Int, Nv::Int, Ni::Int, Nomega::Int,
+                       rmax::Real, phi::SphericalPotential,
+                       edges::Array{Tuple{Float64, Float64}})
+    lib = OrbitLibrary(Nr, Nv, Ni, Nomega, rmax, phi)
+    BinnedLibrary(lib.phi,
+                  [BinnedOrbit(lib.orbits[i], edges) for i in 1:length(lib)])
+end
+
+size(lib::BinnedLibrary) = size(lib.orbits)
+length(lib::BinnedLibrary) = length(lib.orbits)
+show(io::IO, lib::BinnedLibrary) = println(format("BinnedLibrary: {:d} orbits", size(lib.orbits)[1]))
 
 end
