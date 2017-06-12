@@ -169,10 +169,9 @@ size(lib::OrbitLibrary) = size(lib.orbits)
 length(lib::OrbitLibrary) = length(lib.orbits)
 show(io::IO, lib::OrbitLibrary) = println(format("OrbitLibrary: {:d} orbits", size(lib.orbits)[1]))
 
-
 type BinnedLibrary
     orbits::Array{BinnedOrbit}
-    unbinnedLib::OrbitLibrary
+    # unbinnedLib::OrbitLibrary
 end
 
 function BinnedLibrary(lib::OrbitLibrary, edges::Array{Tuple{Float64, Float64}},
@@ -191,7 +190,8 @@ function BinnedLibrary(lib::OrbitLibrary, edges::Array{Tuple{Float64, Float64}},
         f = map
     end
     orbits = f(i -> BinnedOrbit(inputs[i]..., edges), 1:length(inputs))
-    binlib = BinnedLibrary(orbits, lib)
+    # binlib = BinnedLibrary(orbits, lib)
+    binlib = BinnedLibrary(orbits)
     # normalize mass
     for o in binlib.orbits
         o.mass = o.mass / length(binlib)
