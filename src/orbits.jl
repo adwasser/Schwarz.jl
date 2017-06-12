@@ -2,8 +2,9 @@ module Orbits
 
 import Base: size, writedlm, show, length
 using Formatting.format
-using DifferentialEquations
-default_solver = DifferentialEquations.Vern9()
+# using DifferentialEquations
+# default_solver = DifferentialEquations.Vern9()
+using ODE
 
 using Schwarz.Constants
 c = Constants
@@ -29,51 +30,30 @@ type Orbit
     vy::Array
 end
 
-function Orbit(w0::Array, phi::SphericalPotential, alg::AbstractODEAlgorithm;
-               t_int = 10 * c.Gyr, n_t = 2e3)
+function Orbit(w0::Array, phi::SphericalPotential;
+               t_int = 10 * c.Gyr, n_t = 4e3)
     #=
     Orbit in spherical potential, stored 2d coords
 
     w0 : intial condition, [x, y, vx, vy]
     phi : SphericalPotential
     =#
-    pos = w0[1:2]
-    vel = w0[3:4]
-    r = norm(pos)
-    v = norm(vel)
-    # j = norm(cross(vcat(pos, [0]), vcat(vel, [0])))
-    # e = potential(phi, r) + v ^ 2 / 2        
-    g(t, w, dw) = begin
+    g(t, w) = begin
         pos = w[1:2]
         vel = w[3:4]
         r = sqrt(sum(pos .^ 2))
-        dw .= vcat(vel, (-c.G * mass(phi, r) / r ^ 3) .* pos)
+        vcat(vel, (-c.G * mass(phi, r) / r ^ 3) .* pos)
     end
-    # integrate for 10 Gyr
-    # t_int = 10.0 * c.Gyr
     dt = t_int / n_t
-    prob = ODEProblem(g, w0, (0, t_int))
-    sol = solve(prob, alg)
     t = collect(0:dt:t_int)
-    w = sol(t)
-    x = map(w -> w[1], w)
-    y = map(w -> w[2], w)
-    vx = map(w -> w[3], w)
-    vy = map(w -> w[4], w)
-    # # rotate with i and omega
-    # pos = Rz(omega) * Rx(i) * transpose([x y z])
-    # x = pos[1, :]
-    # y = pos[2, :]
-    # z = pos[3, :]
-    # vel = Rz(omega) * Rx(i) * transpose([vx vy vz])
-    # vx = vel[1, :]
-    # vy = vel[2, :]
-    # vz = vel[3, :]
+    tout, wout = ode78(g, w0, t; points=:specified)
+    x = map(w -> w[1], wout)
+    y = map(w -> w[2], wout)
+    vx = map(w -> w[3], wout)
+    vy = map(w -> w[4], wout)
     Orbit(t, x, y, vx, vy)        
 end
 
-Orbit(w0::Array, phi::SphericalPotential; kwargs...) =
-    Orbit(w0, phi, default_solver; kwargs...)
 Orbit(filename::String) = begin
     array = readdlm(filename)
     Orbit(array[:, 1] * c.Gyr, array[:, 2] * c.kpc, array[:, 3] * c.kpc,
