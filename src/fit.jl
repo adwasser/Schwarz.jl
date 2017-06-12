@@ -3,24 +3,8 @@ module Optimize
 include("orbits.jl")
 include("observables.jl")
 
-using Ipopt: createProblem, solveProblem, ApplicationReturnStatus
-
 using Schwarz.Orbits: OrbitLibrary, BinnedLibrary
 using Schwarz.Observables: KinematicData, binedges
-
-"""
-Stupid simple Newton-Raphson root finding of a scalar-multivariate function.
-"""
-function newton(eval_f, eval_grad, x0::Array{Float64, 1};
-                rtol = 1e-2, maxiter = 100)
-    grad = Array{Float64, 1}(length(x0))
-    x = x0
-    for i in 1:maxiter
-        f = eval_f(x)
-        eval_grad(x, grad)
-        
-    end
-end
 
 function objective(lib::BinnedLibrary, data::KinematicData)
     #=
