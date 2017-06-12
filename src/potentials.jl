@@ -22,7 +22,7 @@ function potential(phi::SphericalPotential, r::Real)
     return -c.G * M ./ r
 end
 
-type PowerLawPotential <: SphericalPotential
+immutable PowerLawPotential <: SphericalPotential
     #=
     r0 : scale radius
     rho0 : scale density

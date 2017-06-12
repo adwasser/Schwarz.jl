@@ -8,29 +8,45 @@ using Ipopt: createProblem, solveProblem, ApplicationReturnStatus
 using Schwarz.Orbits: OrbitLibrary, BinnedLibrary
 using Schwarz.Observables: KinematicData, binedges
 
-function objective(lib::OrbitLibrary, data::KinematicData)
+"""
+Stupid simple Newton-Raphson root finding of a scalar-multivariate function.
+"""
+function newton(eval_f, eval_grad, x0::Array{Float64, 1};
+                rtol = 1e-2, maxiter = 100)
+    grad = Array{Float64, 1}(length(x0))
+    x = x0
+    for i in 1:maxiter
+        f = eval_f(x)
+        eval_grad(x, grad)
+        
+    end
+end
+
+function objective(lib::BinnedLibrary, data::KinematicData)
     #=
     From an orbit library and kinematic data, return the objective function,
     its gradient, constraints, etc.
     =#
-    lib = BinnedLibrary(lib, data.edges)
+    # lib = BinnedLibrary(lib, data.edges)
     # m = fractional mass times sigma^2
     # m_lib is n_orbit rows by n_bins columns matrix
     m_lib = [lib.orbits[i].mass[j] * lib.orbits[i].dispersion[j]
              for i in 1:length(lib), j in 1:length(data)]
     mass_lib = [lib.orbits[i].mass[j]
-                for i in 1:length(lib), j in 1:length(data)]    
+                for i in 1:length(lib), j in 1:length(data)]
     m_data = [data.mass[j] * data.dispersion[j] for j in 1:length(data)]
     dm_data = [sqrt((data.unc_mass[j] * data.dispersion[j])^2
                     + (data.unc_dispersion[j] * data.mass[j])^2)
                for j in 1:length(data)]
     u_data = 1 ./ dm_data .^ 2
     Q = Array{Float64, 2}(length(lib), length(lib))
-    for i in 1:length(lib), j in 1:length(lib)
+    for i in 1:length(lib), j in 1:i
         if i == j
             Q[i, j] = 2 * sum(u_data .* m_lib[i, :].^2)
         else
-            Q[i, j] = 4 * sum(u_data .* m_lib[i, :] .* m_lib[j, :])
+            x = 4 * sum(u_data .* m_lib[i, :] .* m_lib[j, :])
+            Q[i, j] = x
+            Q[j, i] = x
         end
     end
     c = -2 * [sum(u_data .* m_data .* m_lib[i, :]) for i in 1:length(lib)]
@@ -111,7 +127,7 @@ function objective(lib::OrbitLibrary, data::KinematicData)
     return eval_f, eval_grad_f, eval_g, eval_jac_g, eval_h
 end
 
-function fit(lib::OrbitLibrary, data::KinematicData)
+function fit(lib::BinnedLibrary, data::KinematicData)
     nbins = length(data)
     n = length(lib) # number of variables
     x_L = zeros(n)
@@ -122,10 +138,12 @@ function fit(lib::OrbitLibrary, data::KinematicData)
     nele_jac = m * n
     nele_hess = sum(1:n)
     eval_f, eval_grad_f, eval_g, eval_jac_g, eval_h = objective(lib, data)
-    
+
+    println("Creating problem")
     prob = createProblem(n, x_L, x_U, m, g_L, g_U, nele_jac, nele_hess,
                          eval_f, eval_g, eval_grad_f, eval_jac_g, eval_h)
     prob.x = ones(n) / n
+    println("Solving problem")
     status = solveProblem(prob)
     println(Ipopt.ApplicationReturnStatus[status])
     println("Weights: ", prob.x)
